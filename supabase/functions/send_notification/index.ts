@@ -1,3 +1,19 @@
+/**
+ * ============================================================================
+ * send_notification/index.ts — NotificationGateway Boundary (FR-029, FR-030, BR-010)
+ * 
+ * VIVA EXAM EXPLANATION:
+ * Implements the INotification service interface & boundary gateway class:
+ * 1. Two-Step Dispatch:
+ *    - Step A: Persists Notification row in PostgreSQL with delivery_status = 'pending'.
+ *    - Step B: Attempts dispatch to external provider (Email / SMS Mock).
+ *    - Step C: Updates row to 'sent' or 'failed' based on provider response.
+ * 2. Fault Tolerance & Non-blocking Isolation (BR-010):
+ *    - If provider throws or fails, status is marked 'failed' for background retry.
+ *    - HTTP 200 is still returned to ensure client/order operations never abort.
+ * ============================================================================
+ */
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 

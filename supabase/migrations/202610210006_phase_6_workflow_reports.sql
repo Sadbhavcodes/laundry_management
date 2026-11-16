@@ -1,3 +1,17 @@
+-- ============================================================================
+-- 202610210006_phase_6_workflow_reports.sql
+-- LaundryStaff Processing Issues, RLS Updates & Supabase Realtime Publication
+-- Traceability: FR-017–FR-021 (Staff Workflow), FR-030 (Realtime Tracking), FR-033–FR-036 (Reports)
+-- 
+-- VIVA EXAM EXPLANATION:
+-- 1. processing_issues: Table tracking notes on specific items or entire orders logged by staff.
+-- 2. RLS Policies: Allows LaundryStaff to update assigned orders and items only when an active
+--    staff_assignment row exists.
+-- 3. alter publication supabase_realtime add table public.orders:
+--    Enables WebSocket CDC (Change Data Capture) streaming so customers get instant live updates
+--    whenever an order moves through the processing lifecycle.
+-- ============================================================================
+
 -- LaundryStaff workflow issue notes, assignment-scoped updates, and customer order Realtime.
 create table public.processing_issues (
   id uuid primary key default gen_random_uuid(),

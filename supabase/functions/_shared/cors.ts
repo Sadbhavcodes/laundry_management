@@ -1,5 +1,20 @@
+/**
+ * ============================================================================
+ * cors.ts — Cross-Origin Resource Sharing (CORS) Configuration
+ * 
+ * VIVA EXAM EXPLANATION:
+ * This module secures Supabase Edge Functions across environments:
+ * 1. Allows local development servers (localhost:5173 / 127.0.0.1:5173).
+ * 2. Checks and permits deployed frontend production origin and preview URLs (Vercel).
+ * 3. Enforces standard HTTP security headers (OPTIONS preflight handling, Vary: Origin).
+ * ============================================================================
+ */
+
 const localOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173']
 
+/**
+ * Returns the CORS response headers appropriate for the incoming request origin.
+ */
 export function corsHeaders(request: Request): HeadersInit {
   const origin = request.headers.get('Origin')
   const exactOrigins = [
@@ -9,6 +24,7 @@ export function corsHeaders(request: Request): HeadersInit {
   ]
   let allowed = Boolean(origin && exactOrigins.includes(origin))
 
+  // Allow dynamically generated Vercel preview deployment URLs matching project slug
   const projectSlug = Deno.env.get('VERCEL_PROJECT_SLUG')?.toLowerCase()
   if (origin && projectSlug) {
     try {

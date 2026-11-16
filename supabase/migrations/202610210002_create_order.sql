@@ -1,5 +1,15 @@
--- UC-003: a submitted order, its items, and its ORDER_CREATED notification commit together.
--- Prices are chosen server-side by service type so the browser cannot alter the estimate.
+-- ============================================================================
+-- 202610210002_create_order.sql
+-- Function: public.create_order_atomic(p_items jsonb, p_handling_instructions text)
+-- Traceability: UC-003, FR-006, FR-007, FR-010, FR-012; BR-001, BR-002
+-- 
+-- VIVA EXAM EXPLANATION:
+-- Implements atomic order creation in a single PostgreSQL transaction:
+-- 1. Checks caller authorization: user must have role='Customer' and account_status='Active' (BR-001).
+-- 2. Checks BR-002: Order must contain at least 1 valid item (rejects empty orders).
+-- 3. Computes estimated price server-side: prevents client-side price tampering.
+-- 4. Inserts Order (status='Created') and child OrderItems atomically.
+-- ============================================================================
 create or replace function public.create_order_atomic(
   p_items jsonb,
   p_handling_instructions text default null

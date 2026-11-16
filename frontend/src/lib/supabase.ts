@@ -1,3 +1,16 @@
+/**
+ * ============================================================================
+ * supabase.ts — Supabase Client Initialization
+ * 
+ * VIVA EXAM EXPLANATION:
+ * Initializes the client-side Supabase client singleton using public anonymous key.
+ * Used across React components for:
+ * - Supabase Auth (Sign in, sign up, session tracking).
+ * - Database queries bounded strictly by Row Level Security (RLS).
+ * - Realtime WebSocket channels (Orders and Notifications subscriptions).
+ * ============================================================================
+ */
+
 import { createClient } from '@supabase/supabase-js'
 
 const url = import.meta.env.VITE_SUPABASE_URL

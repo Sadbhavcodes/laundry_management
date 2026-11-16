@@ -1,3 +1,25 @@
+/**
+ * ============================================================================
+ * record_delivery/index.ts — Supabase Edge Function (UC-010 Record Delivery)
+ * SRS Traceability: FR-016, FR-022, FR-024, FR-025, FR-026, FR-028, FR-030;
+ *                   BR-006 (Idempotent Invoice), BR-007 (All items accounted for),
+ *                   BR-010 (Notification Isolation)
+ * 
+ * VIVA EXAM EXPLANATION:
+ * Implements IDelivery.recordDelivery() contract:
+ * 1. Checks Preconditions:
+ *    - Active DeliveryPersonnel session and active assignment in staff_assignments.
+ *    - Order must be in status 'Out for Delivery' (or 'Delivered' for idempotent retries).
+ * 2. Item Handover Checklist (FR-025 / BR-007):
+ *    - Validates that every catalogued item has a submitted outcome.
+ * 3. Atomic Outcome Handling:
+ *    - If all items are 'received': marks order 'Delivered' and generates unique Invoice (BR-006).
+ *    - If any item is missing/damaged: logs DeliveryException and sets order review_flag = true (status remains unchanged).
+ * 4. Notifications:
+ *    - Dispatches DELIVERY_CONFIRMED or DELIVERY_EXCEPTION via NotificationGateway.
+ * ============================================================================
+ */
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { queueNotification } from '../_shared/notifications.ts'
@@ -10,6 +32,10 @@ function response(body: unknown, headers: HeadersInit, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...headers, 'Content-Type': 'application/json' } })
 }
 function fail(error: ErrorCode, headers: HeadersInit, status: number) { return response({ error }, headers, status) }
+
+/**
+ * Extracts session_id claim from JWT token.
+ */
 function tokenSessionId(token: string): string | null {
   try {
     const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')

@@ -1,4 +1,18 @@
--- UC-010 / BR-006 / BR-007: account for every item before delivery completion.
+-- ============================================================================
+-- 202610210004_record_delivery.sql
+-- Functions: public.generate_invoice(p_order_id), public.record_delivery(...)
+-- Traceability: UC-010, FR-016, FR-024, FR-025, FR-026, FR-028, FR-030;
+--               BR-006 (Invoice once on Delivered), BR-007 (Account for every item)
+-- 
+-- VIVA EXAM EXPLANATION:
+-- 1. generate_invoice(order_id): Idempotent invoice generator. Sums (quantity * unit_price)
+--    across all order items. Safe to retry (returns existing invoice if already present).
+-- 2. record_delivery(...):
+--    - Requires caller to be active DeliveryPersonnel with active assignment for this order.
+--    - Checks BR-007: Every item must have an outcome ('received', 'missing', 'damaged', 'failed').
+--    - If exceptions exist: sets order review_flag = true and stays in review.
+--    - If all items received undamaged: marks order 'Delivered' and generates invoice automatically.
+-- ============================================================================
 create or replace function public.generate_invoice(p_order_id uuid)
 returns public.invoices
 language plpgsql

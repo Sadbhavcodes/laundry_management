@@ -1,3 +1,22 @@
+/**
+ * ============================================================================
+ * App.tsx — Core Frontend Entry Point & Component Architecture
+ * 
+ * VIVA EXAM EXPLANATION:
+ * Implements the presentation layer (Assignment 7 / Wireframes 51.1–51.3):
+ * 1. App(): Root controller. Manages session and role routing (Customer / Staff / Delivery / Admin).
+ * 2. AuthCard(): Handles Login & Signup; logs active sessions to session_log (BR-001).
+ * 3. ProtectedHome(): Role-aware dashboard shell displaying role-specific subsystems.
+ * 4. CreateOrderForm(): UC-003 Create Order with interactive price estimation.
+ * 5. ScheduleOrderForm(): UC-005 Slot picker with simultaneous dual-slot locking.
+ * 6. RecordDeliveryScreen(): UC-010 Item checklist & handover verification.
+ * 7. StaffWorkflow(): Phase 6 Staff order processing & item status updating.
+ * 8. AdminDashboard(): Phase 6 Operational & revenue summary reporting.
+ * 9. CustomerOrderTracker(): Realtime live order progress tracker (FR-030).
+ * 10. CustomerNotifications(): Realtime Notification Center / email alerts.
+ * ============================================================================
+ */
+
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
@@ -38,6 +57,9 @@ type NotificationRow = {
 }
 const servicePrices: Record<string, number> = { 'Wash & Fold': 5, 'Dry Cleaning': 12, Pressing: 4, Delicates: 7.5 }
 
+/**
+ * Extracts session_id claim from JWT token to track active session in session_log table.
+ */
 function sessionIdFromToken(token: string): string | null {
   try {
     const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
@@ -53,6 +75,10 @@ const roleCopy: Record<Role, { title: string; description: string }> = {
   Administrator: { title: 'LaundryHub administration', description: 'Manage people, orders, capacity, and operations.' },
 }
 
+/**
+ * Root Application Component.
+ * Listens to authentication state changes, records session log, and loads profile.
+ */
 function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -66,6 +92,7 @@ function App() {
       if (!currentSession) { setProfile(null); setLoading(false); return }
       const sessionId = sessionIdFromToken(currentSession.access_token)
       if (sessionId) {
+        // Records active session in session_log table (SRS Section 34 / 46 AuthenticationSession analogue)
         await client.from('session_log').upsert({
           user_id: currentSession.user.id,
           session_id: sessionId,
@@ -90,6 +117,11 @@ function App() {
   return <ProtectedHome profile={profile} />
 }
 
+/**
+ * Authentication Screen (Sign In / Sign Up)
+ * Demonstrates FR-001 (User Login) and FR-002 (Auth Failure Handling).
+ * Upon sign up, new identities automatically provision as Customer role (FR-004 / BR-001).
+ */
 function AuthCard() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [name, setName] = useState('')
@@ -106,6 +138,14 @@ function AuthCard() {
   return <main className="page auth-page"><section className="brand-panel"><span className="eyebrow">LaundryHub</span><h1>Care, tracked from door to door.</h1><p>One secure place for your laundry orders, schedules, and updates.</p></section><section className="auth-card" aria-labelledby="auth-title"><div className="tabs"><button className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Sign in</button><button className={mode === 'signup' ? 'active' : ''} onClick={() => setMode('signup')}>Create account</button></div><h2 id="auth-title">{mode === 'login' ? 'Welcome back' : 'Create your customer account'}</h2><p className="muted">{mode === 'login' ? 'Use the email and password associated with your account.' : 'New accounts start as Customer accounts. Staff roles are assigned by an administrator.'}</p><form onSubmit={submit}>{mode === 'signup' && <label>Full name<input value={name} onChange={e => setName(e.target.value)} required autoComplete="name" /></label>}<label>Email<input value={email} onChange={e => setEmail(e.target.value)} required type="email" autoComplete="email" /></label><label>Password<input value={password} onChange={e => setPassword(e.target.value)} required minLength={6} type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></label>{message && <p className="form-message" role="status">{message}</p>}<button className="primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}</button></form><p className="hint">Local demo: customer@laundryhub.test / Password123!</p></section></main>
 }
 
+/**
+ * Protected Home Dashboard Shell (FR-005 Role-Based Access)
+ * Displays appropriate subsystems depending on user.role:
+ * - Customer: CreateOrderForm, ScheduleOrderForm, CustomerOrderTracker, CustomerNotifications
+ * - LaundryStaff: StaffWorkflow
+ * - DeliveryPersonnel: RecordDeliveryScreen
+ * - Administrator: AdminDashboard
+ */
 function ProtectedHome({ profile }: { profile: Profile }) {
   const copy = roleCopy[profile.role]
   const guard = profile.role === 'Customer' ? 'You can access only your orders and their items.' : profile.role === 'LaundryStaff' ? 'You can access only orders assigned to you.' : profile.role === 'DeliveryPersonnel' ? 'You can access only orders and items with your active assignment.' : 'You have administrative access to all LaundryHub records.'
@@ -119,6 +159,12 @@ function ProtectedHome({ profile }: { profile: Profile }) {
   return <main className="page dashboard"><header><div><span className="eyebrow">LaundryHub</span><h1>{copy.title}</h1></div><div className="account"><span>{profile.name}</span><strong>{profile.role}</strong><button onClick={() => void signOut()}>Sign out</button></div></header><section className="welcome-card"><p className="eyebrow">Signed in securely</p><h2>Hello, {profile.name.split(' ')[0]}.</h2><p>{copy.description}</p></section>{profile.role === 'Customer' && <><CustomerNotifications customerId={profile.id} /><CreateOrderForm /><ScheduleOrderForm /><CustomerOrderTracker customerId={profile.id} /></>}{profile.role === 'LaundryStaff' && <StaffWorkflow staffId={profile.id} />} {profile.role === 'DeliveryPersonnel' && <RecordDeliveryScreen personnelId={profile.id} />}{profile.role === 'Administrator' && <AdminDashboard />}<section className="guard-card"><h2>Role-aware access is on</h2><p>{guard}</p></section></main>
 }
 
+/**
+ * UC-003 Create Order Form Component (Wireframe Fig 51.1)
+ * Traceability: FR-006 (Create Order), FR-007 (Cataloguing), FR-012 (Pricing), BR-002 (Min 1 item)
+ * Viva Point: Features client-side live pricing estimate that synchronizes dynamically as items/quantities change.
+ * On submission failure, preserves entered form inputs so user never loses data.
+ */
 export function CreateOrderForm() {
   const [items, setItems] = useState<OrderItemDraft[]>([{ description: '', quantity: '1', serviceType: 'Wash & Fold' }])
   const [handlingInstructions, setHandlingInstructions] = useState('')
@@ -172,6 +218,14 @@ export function CreateOrderForm() {
   </section>
 }
 
+/**
+ * UC-005 Schedule Order Form Component (Wireframe Fig 51.2)
+ * Traceability: FR-013 (Slot Selection), FR-014 (Slot Availability), BR-003 (Dual-Slot All-or-Nothing)
+ * Viva Point:
+ * - Loads available pickup & delivery slots where booked_count < capacity.
+ * - Submits both pickupSlotId and deliverySlotId simultaneously to backend RPC schedule_order.
+ * - Atomic reservation guarantees both are booked or neither is (no one-sided bookings).
+ */
 function ScheduleOrderForm() {
   const [orders, setOrders] = useState<CreatedOrder[]>([])
   const [slots, setSlots] = useState<Slot[]>([])
@@ -234,6 +288,16 @@ function SlotPicker({ title, slots, selectedId, onSelect, describe }: { title: s
   return <fieldset className="slot-picker"><legend>{title}</legend>{slots.length === 0 ? <p className="muted">No slots currently available.</p> : slots.map(slot => <label className={`slot-choice ${selectedId === slot.id ? 'selected' : ''}`} key={slot.id}><input type="radio" name={title} value={slot.id} checked={selectedId === slot.id} onChange={() => onSelect(slot.id)} required /><span>{describe(slot)}</span></label>)}</fieldset>
 }
 
+/**
+ * UC-010 Record Delivery Screen (Wireframe Fig 51.3)
+ * Traceability: FR-024 (Record Delivery), FR-025 (Handover against Catalogue),
+ *               FR-026 (Generate Invoice), BR-006 (Invoice once), BR-007 (All items accounted for)
+ * Viva Point:
+ * - Displays an item-by-item checklist for delivery drivers.
+ * - Enforces BR-007: Every item must have a selected outcome ('received', 'missing', 'damaged', 'failed').
+ * - If any item is missing/damaged, creates DeliveryException rows and keeps the order in review.
+ * - Only marks 'Delivered' when all items are confirmed undamaged, which generates an invoice.
+ */
 function RecordDeliveryScreen({ personnelId }: { personnelId: string }) {
   const [orders, setOrders] = useState<DeliveryOrder[]>([])
   const [selectedOrderId, setSelectedOrderId] = useState('')
@@ -319,6 +383,16 @@ function RecordDeliveryScreen({ personnelId }: { personnelId: string }) {
   </section>
 }
 
+/**
+ * LaundryStaff Workflow Subsystem (FR-017 to FR-021, BR-005)
+ * Traceability:
+ * - FR-017 (View assigned orders)
+ * - FR-018 (Update order status: Picked Up -> In Processing -> Ready)
+ * - FR-019 (Update item status: Pending, In Processing, Ready, Issue Flagged)
+ * - FR-020 (Flag processing issues)
+ * - FR-021 (Mark order Ready for delivery/pickup)
+ * Viva Point: Only LaundryStaff assigned to this order via staff_assignments can modify status (checked by PostgreSQL RLS).
+ */
 function StaffWorkflow({ staffId }: { staffId: string }) {
   const [orders, setOrders] = useState<StaffOrder[]>([])
   const [selectedOrderId, setSelectedOrderId] = useState('')
@@ -402,6 +476,14 @@ function StaffWorkflow({ staffId }: { staffId: string }) {
   </section>
 }
 
+/**
+ * Administrator Operations Dashboard (FR-033, FR-034, FR-036, BR-008)
+ * Traceability:
+ * - FR-033: Order breakdown and count across all 8 OrderStatus states.
+ * - FR-034: Invoiced revenue aggregation.
+ * - FR-036: Operational snapshot summary.
+ * Viva Point: RLS policy enforces that only users with role='Administrator' can query cross-tenant metrics.
+ */
 function AdminDashboard() {
   const [orders, setOrders] = useState<{ status: string }[]>([])
   const [revenue, setRevenue] = useState(0)
@@ -431,6 +513,14 @@ function AdminDashboard() {
   </section>
 }
 
+/**
+ * CustomerOrderTracker Component (FR-030 / UC-004)
+ * Traceability: US-004 (Track order status), FR-030 (Status Change Notification)
+ * Viva Point:
+ * - Uses Supabase Realtime WebSocket channel on 'orders' table filtered by customer_id.
+ * - Live UI automatically updates when status progresses (e.g. from LaundryStaff or Delivery actions)
+ *   without requiring page refreshes.
+ */
 function CustomerOrderTracker({ customerId }: { customerId: string }) {
   const [orders, setOrders] = useState<CustomerTrackedOrder[]>([])
   const [loading, setLoading] = useState(true)

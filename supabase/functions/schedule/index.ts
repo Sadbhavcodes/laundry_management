@@ -1,3 +1,25 @@
+/**
+ * ============================================================================
+ * schedule/index.ts — Supabase Edge Function (UC-005 Schedule Pickup/Delivery)
+ * SRS Traceability: FR-013 (Slot Selection), FR-014 (Slot Availability), 
+ *                   FR-030 (Status Notification); BR-003 (Both slots or neither)
+ * 
+ * VIVA EXAM EXPLANATION:
+ * Implements IScheduling.schedule() contract:
+ * 1. Checks Preconditions:
+ *    - Active Customer session & ownership of the order.
+ *    - Order must be in status 'Created'.
+ * 2. Atomic Dual-Slot Locking & Reservation (BR-003):
+ *    - Calls PostgreSQL RPC schedule_order().
+ *    - Both pickup and delivery slots are locked (SELECT ... FOR UPDATE) and capacity
+ *      is verified (booked_count < capacity).
+ *    - Either BOTH slots increment booked_count and Order status changes to
+ *      'Pickup Scheduled', or neither does.
+ * 3. Notification Dispatch (FR-030):
+ *    - Sends SCHEDULE_CONFIRMED notification asynchronously.
+ * ============================================================================
+ */
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { queueNotification } from '../_shared/notifications.ts'
@@ -9,6 +31,10 @@ function response(body: unknown, headers: HeadersInit, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...headers, 'Content-Type': 'application/json' } })
 }
 function fail(error: ErrorCode, headers: HeadersInit, status: number) { return response({ error }, headers, status) }
+
+/**
+ * Parses session_id from JWT payload.
+ */
 function tokenSessionId(token: string): string | null {
   try {
     const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')

@@ -1,3 +1,22 @@
+/**
+ * ============================================================================
+ * create_order/index.ts — Supabase Edge Function (UC-003 Create Order)
+ * SRS Traceability: FR-006, FR-007, FR-010, FR-012, FR-029; BR-001, BR-002
+ * 
+ * VIVA EXAM EXPLANATION:
+ * Implements IOrderService.createOrder() contract:
+ * 1. Checks Preconditions (BR-001):
+ *    - Authenticated session with active Customer profile (from session_log & profiles table).
+ * 2. Validates Items (BR-002):
+ *    - Validates order items (no empty order, valid quantity > 0, recognized service types).
+ * 3. Atomic Database Execution:
+ *    - Calls PostgreSQL RPC create_order_atomic(items, instructions).
+ *    - Creates Order (status='Created') and OrderItems in 1 transaction.
+ * 4. Dispatches Notification (FR-029 / BR-010):
+ *    - Calls queueNotification via NotificationGateway (ORDER_CREATED).
+ * ============================================================================
+ */
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { queueNotification } from '../_shared/notifications.ts'
@@ -10,6 +29,10 @@ function response(body: unknown, headers: HeadersInit, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...headers, 'Content-Type': 'application/json' } })
 }
 function fail(error: ErrorCode, headers: HeadersInit, status: number) { return response({ error }, headers, status) }
+
+/**
+ * Extracts session_id claim from JWT token to check against session_log.
+ */
 function tokenSessionId(token: string): string | null {
   try {
     const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
@@ -35,7 +58,7 @@ Deno.serve(async (request: Request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 
-  // Verify the Supabase Auth session and active Customer account before inspecting order input.
+  // BR-001: Verify Supabase Auth user, active session_log row, and active Customer profile
   const { data: authData, error: authError } = await supabase.auth.getUser()
   if (authError || !authData.user) return fail('UNAUTHENTICATED', headers, 401)
   const sessionId = tokenSessionId(authorization.slice('Bearer '.length))

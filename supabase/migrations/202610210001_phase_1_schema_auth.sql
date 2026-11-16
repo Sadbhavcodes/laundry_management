@@ -1,5 +1,21 @@
--- LaundryHub Phase 1: SRS 46.2 / 46.3 domain model and authentication foundation.
--- `profiles` is the persisted User base class; auth.users remains the identity source.
+-- ============================================================================
+-- 202610210001_phase_1_schema_auth.sql
+-- LaundryHub Phase 1: SRS Domain Model & Authentication Foundation (SRS 46.2 / 46.3)
+-- 
+-- VIVA EXAM EXPLANATION:
+-- Establishes the 13 domain classes and 8 OrderStatus lifecycle states:
+-- 1. profiles: User base entity linked 1:1 with auth.users via cascading foreign key.
+-- 2. customers, laundry_staff, delivery_personnel: Specialization tables (Inheritance).
+-- 3. session_log: Persisted analogue of AuthenticationSession class (FR-001/003, BR-001).
+-- 4. pickup_delivery_slots: Capacity management table (capacity, booked_count) (FR-013, BR-003).
+-- 5. orders: Central aggregate root; references customer, pickupSlot, deliverySlot.
+-- 6. order_items: Composition (ON DELETE CASCADE) - Order owns OrderItems (BR-002).
+-- 7. staff_assignments: Junction table for operational assignments (LaundryStaff / DeliveryPersonnel).
+-- 8. invoices: 1:1 with orders on delete restrict (BR-006).
+-- 9. notifications: Persists alert history with delivery_status ('pending', 'sent', 'failed').
+-- 10. delivery_exceptions: Records missing/damaged items or failed delivery attempts (BR-007).
+-- 11. Row Level Security (RLS): Strict multi-tenant data isolation per role.
+-- ============================================================================
 
 create extension if not exists pgcrypto;
 

@@ -1,4 +1,17 @@
--- UC-005 / BR-003: reserve pickup and delivery capacity as one transaction.
+-- ============================================================================
+-- 202610210003_schedule_order.sql
+-- Function: public.schedule_order(p_order_id, p_pickup_slot_id, p_delivery_slot_id)
+-- Traceability: UC-005, FR-013, FR-014, FR-030; BR-003 (Both slots or neither)
+-- 
+-- VIVA EXAM EXPLANATION:
+-- Implements dual-slot scheduling with pessimistic concurrency control:
+-- 1. Checks Preconditions: Order must exist in 'Created' status and belong to the user.
+-- 2. Row-Level Locks: Locks both slot rows using 'SELECT ... FOR UPDATE' in deterministic
+--    UUID order to avoid deadlocks between concurrent customers.
+-- 3. Capacity Invariant (BR-003): Checks booked_count < capacity for both slots.
+-- 4. Atomic Increment: Increments booked_count on both slots and moves Order status to 'Pickup Scheduled'.
+-- 5. All-or-Nothing: If either slot has reached capacity, rolls back completely.
+-- ============================================================================
 create or replace function public.schedule_order(
   p_order_id uuid,
   p_pickup_slot_id uuid,
