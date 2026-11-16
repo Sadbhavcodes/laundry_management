@@ -1,0 +1,46 @@
+.staff-card,.admin-card,.tracking-card{max-width:1080px;margin:20px auto 0;padding:clamp(24px,4vw,44px);border-radius:16px;background:#fff;box-shadow:0 14px 38px #1931430d}
+.staff-layout{display:grid;grid-template-columns:minmax(220px,.65fr) minmax(0,1.6fr);gap:24px;margin-top:22px}
+.assigned-order-list{display:grid;align-content:start;gap:8px}
+.assigned-order-list button{display:grid;gap:6px;text-align:left;padding:13px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)}
+.assigned-order-list button.selected{border-color:var(--aqua);background:#effafa}
+.assigned-order-list small,.assigned-order-list span{color:var(--muted);font-size:.82rem}
+.staff-detail{min-width:0}.staff-detail h3{margin:0}
+.staff-status-actions{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+.staff-status-actions button,.issue-form button{border:0;border-radius:7px;padding:10px 13px;background:var(--navy);color:white;font-weight:700}
+.staff-status-actions button:disabled,.issue-form button:disabled{opacity:.55}
+.staff-item-list{margin:20px 0;border-top:1px solid var(--line)}
+.staff-item{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,.5fr);align-items:center;gap:14px;padding:12px 4px;border-bottom:1px solid #edf1f3}
+.staff-item strong,.staff-item small{display:block}.staff-item small{color:var(--muted);margin-top:4px}.staff-item select{max-width:220px}
+.staff-order-summary{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:16px;border-radius:10px;background:var(--mist)}.staff-order-summary p{color:var(--muted)}.next-status{width:auto;margin:0}
+.issue-form h3{grid-column:1 / -1;margin:0}
+.issue-history article{padding:12px 14px;border:1px solid var(--line);border-radius:8px;margin-top:9px}.issue-history article p{margin:6px 0}.issue-history article small,.issue-history article>span{color:var(--muted)}
+.issue-form{display:grid;grid-template-columns:minmax(150px,.55fr) minmax(220px,1fr) auto;align-items:end;gap:12px;padding:18px 0;border-top:1px solid var(--line)}
+.issue-form label{margin:0}.issue-form button{height:44px}.issue-list{padding-left:20px;color:var(--muted);line-height:1.6}
+.admin-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:22px 0}
+.summary-tile{padding:18px;border:1px solid var(--line);border-radius:10px;background:#fbfdfd}.summary-tile span,.summary-tile strong{display:block}.summary-tile span{color:var(--muted);font-size:.82rem}.summary-tile strong{margin-top:8px;color:var(--navy);font-size:1.65rem}
+.status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.status-grid article{display:flex;justify-content:space-between;gap:8px;padding:12px;border-radius:8px;background:var(--mist);font-size:.85rem}.status-grid article strong{color:var(--navy)}
+.live-indicator{display:inline-flex;align-items:center;gap:7px;color:#24734f;font-size:.8rem;font-weight:700}.live-indicator::before{width:8px;height:8px;border-radius:50%;background:#39b978;content:""}
+.tracked-orders{display:grid;gap:10px;margin-top:20px}.tracked-order{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:15px 16px;border:1px solid var(--line);border-radius:9px}.tracked-order strong,.tracked-order span{display:block}.tracked-order span{margin-top:5px;color:var(--muted);font-size:.84rem}.tracked-status{text-align:right}.tracked-status b{padding:7px 10px;border-radius:999px;background:#eaf7f6;color:#135d66;font-size:.82rem;white-space:nowrap}.tracked-status span{margin-top:10px}
+.empty-state{padding:24px;text-align:center;color:var(--muted);border:1px dashed #ccd9de;border-radius:9px}
+@media(max-width:760px){.staff-layout{grid-template-columns:1fr}.assigned-order-list{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.issue-form{grid-template-columns:1fr}.issue-form button{width:100%}.report-summary{grid-template-columns:1fr}.status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tracked-order{align-items:flex-start;flex-direction:column}.tracked-status{text-align:left}.staff-item{grid-template-columns:1fr}.staff-item select{max-width:none}.staff-order-summary{align-items:flex-start;flex-direction:column}.next-status{width:100%}}
+
+/* Notification Center & Alert Banner styles (FR-029, FR-030) */
+.notification-card{max-width:1080px;margin:20px auto 0;padding:clamp(24px,4vw,44px);border-radius:16px;background:#fff;box-shadow:0 14px 38px #1931430d}
+.notification-badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:0.75rem;font-weight:700;margin-left:8px}
+.notification-badge.unread{background:#fee2e2;color:#991b1b}
+.notification-badge.read{background:#e2e8f0;color:#475569}
+.notifications-list{display:grid;gap:12px;margin-top:18px}
+.notification-item{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:16px;border-radius:10px;border:1px solid var(--line);background:#fafcfd;transition:all 0.2s}
+.notification-item.unread{border-left:4px solid var(--aqua);background:#f0fbfb}
+.notification-item-content strong{display:block;font-size:0.95rem;color:var(--navy);margin-bottom:4px}
+.notification-item-content p{margin:0 0 6px 0;line-height:1.45;color:var(--ink);font-size:0.92rem}
+.notification-item-content small{color:var(--muted);font-size:0.8rem}
+.notification-actions{display:flex;align-items:center;gap:8px}
+.mark-read-btn{border:1px solid var(--line);background:#fff;color:var(--navy);border-radius:6px;padding:6px 10px;font-size:0.8rem;font-weight:600}
+.mark-read-btn:hover{background:#f1f5f9}
+.notification-pill-type{display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px}
+.type-ready{background:#dcfce7;color:#166534}
+.type-processing{background:#e0f2fe;color:#075985}
+.type-created{background:#fef3c7;color:#92400e}
+.type-delivery{background:#f3e8ff;color:#6b21a8}
+.type-exception{background:#fee2e2;color:#991b1b}

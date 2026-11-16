@@ -1,0 +1,325 @@
+LaundryHub — Implementation Plan
+Oct 20, 2026
+This document is the build plan for LaundryHub, the web-based laundry management
+system specified across Lab Assignments 1–7 (Team T046, Course CS314, LNMIIT). It
+translates the SRS, UML models, and Assignment 7 interface/pseudocode design into an
+actual deployable application, phase by phase. Every phase below maps back to specific
+FR/BR/UC numbers from the source document so the implementation stays traceable and
+defensible in a viva or technical interview. Each phase ends with a ready-to-use prompt
+that can be handed to an AI coding assistant (or used as a personal checklist) to execute
+that phase consistently with the design.
+Request flow: React + TypeScript + Vite (hosted on Vercel) → Supabase Edge
+Functions (Deno/TS) implementing IOrderService, IScheduling, IDelivery,
+IInvoiceService, INotification → Postgres (Supabase) with RLS policies and
+transactional functions for atomic invariants → external SMS/Email provider, called from
+an Edge Function acting as the NotificationGateway boundary class.
+This mirrors the layered client–server architecture mandated in Section 47 of the SRS: a
+presentation layer, an application-service layer coordinating the domain model, and a
+persistence layer — except here the persistence layer also carries some of the invariant
+enforcement (via Postgres functions and RLS), giving defense-in-depth: even if a bug
+slipped into the Edge Function layer, the database would still refuse a role violation or a
+partial slot reservation.
+Layer Choice Interview-ready justification
+Frontend React + TypeScript + Vite +
+Tailwind CSSComponent architecture maps
+directly onto the low-fi wireframes in
+SRS Section 51; Vite keeps
+build/config overhead low, matching
+the Assignment 1 constraint of a
+student team with limited infra.LaundryHub — Implementation Plan
+Page 1 of 12Layer Choice Interview-ready justification
+Hosting
+(frontend)Vercel Zero-config SPA builds, automatic PR
+preview deployments, global CDN.
+Keeps the presentation layer
+physically separate from the
+service/persistence layers, echoing
+the layered design in Section 47.
+Backend /
+business logicSupabase Edge Functions
+(Deno + TypeScript)Implements the exact
+IOrderService / IScheduling /
+IDelivery contracts and
+pseudocode from Section 52 — the
+interface shapes in code match the
+interface shapes in the design doc
+almost 1:1.
+Database Supabase Postgres The SRS mandates a centralized
+relational database with explicit
+multiplicities and composition
+(Order owns OrderItem, BR-002).
+Postgres gives real foreign keys,
+ACID transactions, and row locking
+— directly needed for BR-003's
+atomic dual-slot reservation.
+Auth Supabase Auth + a thin
+profiles / session_log
+tableReuses a battle-tested auth/session
+implementation while still giving us
+an explicit, queryable analogue of
+the AuthenticationSession class
+from Section 34/46, preserving
+traceability.
+Invariant
+enforcementPostgres functions (RPC) +
+Row Level SecurityPushes BR-002/003/007 guards into
+the database itself rather than
+trusting only application code — a
+defense-in-depth story: "even if the
+app layer had a bug, RLS and the
+transactional function would still
+block it."LaundryHub — Implementation Plan
+Page 2 of 12Phase 0 — Project & Infra Setup
+Goal: stand up the repo, hosting, and connectivity so every later phase has somewhere to
+run.
+1. Initialize GitHub repo with folders: /frontend (React/Vite app),
+/supabase/functions (Edge Functions), /supabase/migrations (SQL migrations).
+2. Create the Supabase project; install and configure the Supabase CLI for local dev.
+3. Create the Vercel project, link it to the GitHub repo, set root directory to /frontend.
+4. Set Vercel environment variables: SUPABASE_URL, SUPABASE_ANON_KEY.
+5. Confirm local Supabase dev environment (supabase start) runs alongside the Vite
+dev server.
+Prompt for this phase: "Scaffold a monorepo for a project called LaundryHub with
+three folders: frontend (React + TypeScript + Vite + Tailwind, using TanStack Query
+for data fetching), supabase/functions (empty, for Deno Edge Functions), and
+supabase/migrations (empty, for SQL migration files). Initialize a Supabase project
+configuration (supabase/config.toml) for local development. Add a root
+README.md stub noting that the frontend deploys to Vercel (root directory
+frontend) and the backend runs on Supabase (Postgres + Auth + Edge Functions).
+Do not add any business logic yet — this is infrastructure only."Layer Choice Interview-ready justification
+Data fetching TanStack Query (React Query)
+over the Supabase clientClean mapping of loading/error
+states onto the exact error codes
+documented in Section 51.2/52 (e.g.
+SLOT_UNAVAILABLE, FORBIDDEN).
+Testing Vitest + React Testing Library
+(frontend); Deno test (Edge
+Functions); pgTAP / SQL tests
+(DB functions)Satisfies the explicit success
+criterion in Section 10: "important
+system functions are tested" and
+"defects are documented and
+resolved."
+Version control Git / GitHub, commits scoped
+per phase and use caseExplicit success criterion in Section
+10: "the project is maintained in a
+controlled Git/GitHub repository."LaundryHub — Implementation Plan
+Page 3 of 12Phase 1 — Schema & Auth Foundation
+Goal: persist the exact 13-class domain model from SRS Section 46 plus auth, so every
+later phase has data and users to work against.
+1. Write the migration for all 13 classes
+(User/Customer/LaundryStaff/DeliveryPersonnel, Order, OrderItem,
+PickupDeliverySlot, StaffAssignment, Invoice, Notification,
+DeliveryException, AuthenticationSession, NotificationGateway as a logical
+boundary) and the OrderStatus enum with its 8 values (Created, Pickup Scheduled,
+Picked Up, In Processing, Ready, Out for Delivery, Delivered, Cancelled).
+2. Create a profiles table keyed to auth.users, storing role, name, contact_info,
+account_status — this plus a session_log table preserves the documented
+AuthenticationSession class even though Supabase Auth manages sessions
+internally.
+3. Write baseline RLS policies per role
+(Customer/LaundryStaff/DeliveryPersonnel/Administrator) matching the access
+matrix in SRS Section 11.
+4. Seed script: sample users per role, sample PickupDeliverySlot rows with varying
+capacity.
+5. Build signup/login UI and role-aware route guarding on the frontend.LaundryHub — Implementation Plan
+Page 4 of 12Prompt for this phase: "Using Supabase (Postgres), write a SQL migration
+implementing these classes exactly as attributed in SRS Section 46.2/46.3 of the
+LaundryHub design: User (base), Customer, LaundryStaff, DeliveryPersonnel,
+AuthenticationSession, Order, OrderItem, PickupDeliverySlot, StaffAssignment,
+Invoice, Notification, DeliveryException, and an OrderStatus enum with exactly
+these 8 values: Created, Pickup Scheduled, Picked Up, In Processing, Ready, Out for
+Delivery, Delivered, Cancelled. Order must own OrderItem via composition (ON
+DELETE CASCADE, at least one item required before an order can be submitted —
+enforce this as an application-level check, not a DB constraint, since drafts may have
+zero items). Add a profiles table linked to auth.users holding
+role/name/contact_info/account_status, and a session_log table recording
+session_id/login_time/active to mirror the AuthenticationSession class. Then write
+RLS policies so: a Customer can only select/insert/update their own Orders and
+OrderItems; a LaundryStaff can select Orders assigned to them via StaffAssignment;
+a DeliveryPersonnel can only select Orders/OrderItems where they hold an active
+StaffAssignment; an Administrator can access everything. Finally write a seed script
+creating one user per role and five PickupDeliverySlot rows with capacity 2–10."
+Phase 2 — UC-003 Create Order
+Traces to: FR-006, FR-007, FR-010, FR-012, FR-029; BR-001, BR-002.
+1. Implement create_order as a Supabase Edge Function wrapping an atomic Postgres
+transaction: inserts the Order row (status = Created) and its OrderItem rows
+together, computes estimatedPrice as the sum of quantity × unitPrice, and
+returns the exact error codes from Section 52.3's pseudocode (UNAUTHENTICATED,
+FORBIDDEN, EMPTY_ORDER, INVALID_ITEM, INVALID_QUANTITY).
+2. RLS: a Customer may only insert orders where customer_id = auth.uid().
+3. Build the Create Order screen per wireframe Fig 51.1: item entry, quantity, service type,
+optional handling instructions, price review, submit.
+4. Notification stub: on success, insert a row into notifications (full gateway dispatch
+wired in Phase 5).LaundryHub — Implementation Plan
+Page 5 of 12Prompt for this phase: "Write a Supabase Edge Function create_order that
+implements this exact precondition/postcondition contract: preconditions — an
+active AuthenticationSession with role Customer; postconditions on success — one
+Order row with status 'Created' and at least one associated OrderItem persisted
+atomically, with estimatedPrice equal to the sum of quantity * unitPrice across
+items. Follow this pseudocode precisely: validate the session and role first (return
+UNAUTHENTICATED/FORBIDDEN on failure), reject an empty items array
+(EMPTY_ORDER), validate each item has a description and serviceType
+(INVALID_ITEM) and a positive integer quantity (INVALID_QUANTITY), then insert
+the Order and its OrderItems in a single database transaction so a validation failure
+partway through never leaves a partial order. On success, insert a row into a
+notifications table with type ORDER_CREATED. Return a typed result {
+orderId, status: 'Created', estimatedPrice } on success or a structured {
+error: <code> } on failure. Then build a matching React form component (fields:
+item description, quantity, service type dropdown, optional handling instructions,
+'Add another item', review estimated price, submit) that calls this function and
+displays the documented error messages inline without losing entered field values
+on failure."
+Phase 3 — UC-005 Schedule Pickup/Delivery
+Traces to: FR-013, FR-014, FR-030; BR-003.
+1. PickupDeliverySlot capacity logic: isAvailable() checks bookedCount <
+capacity.
+2. Write a Postgres function schedule_order(order_id, pickup_slot_id,
+delivery_slot_id) that locks both slot rows (SELECT ... FOR UPDATE) inside one
+transaction, checks capacity on both, reserves both or rolls back entirely — this is the
+direct implementation of BR-003's "reserve both slots or neither" rule.
+3. Wrap it in an Edge Function that checks session/role/ownership first, then calls the
+Postgres function, returning ScheduleResult or the documented error codes
+(SLOT_UNAVAILABLE, ORDER_NOT_SCHEDULABLE, FORBIDDEN, CONCURRENT_UPDATE).
+4. Build the Schedule screen per wireframe Fig 51.2.LaundryHub — Implementation Plan
+Page 6 of 12Prompt for this phase: "Write a Postgres function schedule_order(order_id uuid,
+pickup_slot_id uuid, delivery_slot_id uuid) that, inside a single transaction,
+locks both PickupDeliverySlot rows with SELECT ... FOR UPDATE, checks that
+booked_count < capacity for both, and only if both have room: increments both
+booked_counts, sets Order.pickup_slot_id / Order.delivery_slot_id, and
+updates Order.status to 'Pickup Scheduled'. If either slot lacks capacity, roll back
+the entire transaction — never reserve only one slot. Then write a Supabase Edge
+Function schedule that validates the caller is an authenticated Customer who owns
+the order and that the order's current status is 'Created' (otherwise return
+ORDER_NOT_SCHEDULABLE), calls the Postgres function, and maps failures to
+SLOT_UNAVAILABLE or CONCURRENT_UPDATE. On success, insert a
+SCHEDULE_CONFIRMED notification. Then build a React screen matching this flow:
+select an order in Created status, show available pickup slots (date/time + remaining
+capacity), select one, show available delivery slots, select one, confirm both, and
+show a clear error if either slot became unavailable between viewing and confirming."
+Phase 4 — UC-010 Record Delivery
+Traces to: FR-016, FR-022, FR-024, FR-025, FR-026, FR-028, FR-030; BR-006, BR-007, BR-
+010.
+1. StaffAssignment and DeliveryException tables, with RLS so a DeliveryPersonnel
+only sees orders where they hold an active assignment.
+2. Postgres function enforcing the "all items accounted for" guard before status can
+become Delivered (BR-007): any missing/damaged item creates a DeliveryException
+row and sets Order.reviewFlag = true instead of completing delivery.
+3. generate_invoice function — idempotent, enforces at most one invoice per order
+(BR-006).
+4. Edge Function record_delivery tying both together per Section 52.5's pseudocode
+exactly.
+5. Build the Record Delivery screen per wireframe Fig 51.3.LaundryHub — Implementation Plan
+Page 7 of 12Prompt for this phase: "Implement UC-010 Record Delivery for LaundryHub exactly
+per this contract: recordDelivery(orderId, itemConfirmations, personnelId) →
+preconditions: an active DeliveryPersonnel session, a valid active StaffAssignment
+linking that personnel to the order, the order in an eligible pre-delivery status, and
+every OrderItem having an explicit confirmation or exception outcome submitted.
+Processing: for each item, if received-and-undamaged call item.confirmHandover();
+otherwise create a DeliveryException row (type: Missing Item / Damaged Item /
+Failed Delivery Attempt) linked to the order and optionally the item, and set
+Order.review_flag = true. Only when every item is accounted for with no
+unresolved exception does Order.status become 'Delivered'; otherwise persist the
+exception(s) and leave status unchanged. On a successful Delivered transition, call
+an idempotent generate_invoice(order_id) function that creates exactly one
+Invoice row summing quantity * unit_price across items (if an invoice already
+exists for the order, return it instead of creating a duplicate — this must be safe to
+retry). Send a DELIVERY_CONFIRMED notification on success or
+DELIVERY_EXCEPTION on the exception path. Wrap all of this in a single Postgres
+transaction so item updates, exception rows, and the order's status change commit
+together or not at all. Then build a React screen matching wireframe Fig 51.3: load the
+assigned order, show a checklist of items to confirm/flag, submit, and show
+'Delivered' + invoice summary on success or 'Exception Recorded / Review Required'
+with the exception details on the alternate path."
+Phase 5 — Notifications & Gateway
+Traces to: FR-029, FR-030; BR-010.
+1. Build send_notification as an Edge Function representing the
+NotificationGateway boundary class: it persists the Notification row first, then
+attempts dispatch via an email/SMS provider. A gateway failure never rolls back the
+order-state transaction that triggered it.
+2. Wire it into the success/failure paths of Phases 2–4 (order created, schedule
+confirmed, delivery confirmed, delivery exception).
+3. Add the Vercel preview and production domains to the Supabase CORS allow-list so
+the Edge Functions accept calls from the deployed frontend.LaundryHub — Implementation Plan
+Page 8 of 12Prompt for this phase: "Write a Supabase Edge Function
+send_notification(recipientId, type, message, referenceId) that first inserts
+a row into the notifications table (status = 'pending'), then attempts to dispatch
+via an external email/SMS provider (stub this as a mockable interface for now), and
+finally updates the row's status to 'sent' or 'failed'. Critically: if the external dispatch
+call throws or times out, catch the error, mark the row 'failed' for later retry, and
+return success anyway — a notification gateway failure must never cause the caller
+to roll back an already-committed order/schedule/delivery transaction. Then update
+the create_order, schedule, and record_delivery functions from previous phases to
+call this function at their existing notification points (ORDER_CREATED,
+SCHEDULE_CONFIRMED, DELIVERY_CONFIRMED, DELIVERY_EXCEPTION) via a
+fire-and-forget pattern that doesn't block or fail the parent operation. Finally,
+configure Supabase's Edge Function CORS settings to allow requests from both the
+production Vercel domain and Vercel's preview-deployment domain pattern."
+Phase 6 — Reports, Staff Workflow & Polish
+Traces to: FR-017–FR-021 (LaundryStaff workflow), Section 22 Must/Should-Have items,
+FR-033–FR-036 (reporting).
+1. LaundryStaff screens: view assigned orders, update order/item status, flag processing
+issues — this is the precondition support that brings an order to 'Out for Delivery'
+before UC-010 can run.
+2. Administrator dashboard: basic order/revenue reports (Must-have per Section 22).
+3. Customer order tracking view using Supabase Realtime subscriptions on the orders
+table, satisfying FR-030's "notify on significant status change" with live UI updates as a
+bonus.LaundryHub — Implementation Plan
+Page 9 of 12Prompt for this phase: "Build the LaundryStaff workflow screens for LaundryHub: a
+list of orders assigned to the logged-in staff member (via StaffAssignment), a detail
+view allowing status updates (In Processing → Ready) and per-item status updates,
+and a 'flag issue' action that records a note against an order or item. Then build a
+simple Administrator dashboard showing order counts by status and total revenue
+from Invoices, reading from existing tables (no new business logic). Finally, add a
+Customer-facing order tracking view that subscribes to Supabase Realtime changes
+on the orders table filtered to the logged-in customer's orders, so the UI updates
+live as status changes without a page refresh."
+Phase 7 — Testing & Traceability
+Traces to: Success Criteria in Section 10 ("important system functions are tested",
+"defects are documented and resolved", "accompanied by appropriate software
+engineering documentation").
+1. Write tests per use case and its alternative flows: empty order, invalid quantity, slot
+conflict on scheduling, missing/damaged item on delivery, duplicate invoice retry,
+notification dispatch failure not rolling back a transaction.
+2. Write a README that maps every FR/BR/UC number from the SRS to the specific
+migration, function, or component implementing it — this is the artifact to bring into a
+viva or interview.
+3. Document the deployment topology: Vercel project settings (root directory, env vars)
+and Supabase project settings (CORS, RLS summary), plus how to point a fresh Vercel
+deploy at a new Supabase project for grading/demo purposes.LaundryHub — Implementation Plan
+Page 10 of 12Prompt for this phase: "Write tests for LaundryHub's three implemented use cases:
+(1) UC-003 Create Order — test successful creation, EMPTY_ORDER rejection,
+INVALID_QUANTITY rejection, and that a validation failure never leaves a partial
+order row; (2) UC-005 Schedule Pickup/Delivery — test successful scheduling,
+SLOT_UNAVAILABLE when either slot is full, and that a failed reservation never
+leaves one slot booked while the other isn't; (3) UC-010 Record Delivery — test full
+successful delivery with invoice generation, the missing/damaged item path creating
+a DeliveryException and setting reviewFlag without marking Delivered, and that
+calling record_delivery twice on an already-delivered order doesn't create a
+duplicate invoice. Use Vitest for frontend components, Deno's built-in test runner for
+Edge Functions, and pgTAP (or equivalent SQL-level tests) for the Postgres functions
+enforcing BR-003 and BR-007. Then generate a README.md with a table mapping
+every FR-xxx and BR-xxx number referenced in this implementation plan to the
+specific file (migration, function, or component) that implements it, plus a
+'Deployment' section documenting the Vercel root directory and env vars, and the
+Supabase CORS/RLS configuration needed to run this project against a fresh
+Supabase instance."
+Critical Invariants Checklist
+These must hold regardless of which phase touched the code last — re-verify them
+whenever a later phase edits a function from an earlier one:
+1. BR-002 — an Order cannot be submitted without at least one OrderItem.
+2. BR-003 — both pickup and delivery slots reserve atomically; a failed reservation never
+leaves exactly one slot booked.
+3. OrderStatus retains exactly the 8 documented values (Created, Pickup Scheduled,
+Picked Up, In Processing, Ready, Out for Delivery, Delivered, Cancelled) — no ad-hoc
+extra states.
+4. BR-007 — Delivered is reachable only when every cataloged item has an explicit
+handover confirmation or exception outcome.
+5. Missing or damaged items create a DeliveryException and set Order.reviewFlag =
+true instead of silently completing delivery.
+6. BR-006 — an Invoice is generated only after a successful transition to Delivered, and
+generation is idempotent (at most one invoice per order, safe to retry).LaundryHub — Implementation Plan
+Page 11 of 127. BR-010 / notification semantics — a NotificationGateway dispatch failure is
+recorded for retry but never reverses or blocks the business transaction that triggered
+it.LaundryHub — Implementation Plan
+Page 12 of 12
